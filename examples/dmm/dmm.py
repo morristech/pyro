@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import polyphonic_data_loader as poly
+import pyro.contrib.polyphonic_data_loader as poly
 import pyro
 import pyro.distributions as dist
 import pyro.poutine as poutine
