@@ -22,7 +22,7 @@ from pyro.util import check_traceenum_requirements, warn_if_nan
 
 # TODO move this logic into a poutine
 def _compute_model_costs(model_trace, guide_trace, ordering):
-    # Collect model log_probs, possibly marginalizing out enumerated model variables.
+    # Collect model logprobs and costs that may have been enumerated in the model.
     costs = OrderedDict()
     enum_logprobs = OrderedDict()
     enum_dims = []
@@ -37,25 +37,24 @@ def _compute_model_costs(model_trace, guide_trace, ordering):
     if not enum_logprobs:
         return costs
 
-    # Marginalize out all enumerated variables.
+    # Marginalize out all variables that have been enumerated in the model.
     enum_boundary = max(enum_dims) + 1
     assert enum_boundary <= 0
     marginal_costs = OrderedDict((t, []) for t in costs)
     with shared_intermediates():
         for t, costs_t in costs.items():
-            logprobs = []
-            for u, logprobs_u in enum_logprobs.items():
-                # TODO refine this coarse dependency ordering using time and tensor shapes.
-                if u <= t:
-                    logprobs.extend(logprobs_u)
-            if not logprobs:
-                marginal_costs[t] = costs_t
-                continue
-            costs = []
+            log_factors = []
             for cost in costs_t:
-                (costs if len(cost.shape) > -enum_boundary else marginal_costs[t]).append(cost)
-            if costs:
-                log_factors = logprobs + costs
+                if len(cost.shape) <= -enum_boundary:
+                    marginal_costs[t].append(cost)
+                else:
+                    log_factors.append(cost)
+            if log_factors:
+                for u, logprobs_u in enum_logprobs.items():
+                    # TODO refine this coarse dependency ordering using time and tensor shapes.
+                    if u <= t:
+                        log_factors.extend(logprobs_u)
+                # TODO split marginal_cost into connected components wrt shared tensor dims.
                 target_shape = (broadcast_shape(*set(x.shape[enum_boundary:] for x in log_factors))
                                 if enum_boundary else ())
                 marginal_cost = logsumproductexp(log_factors, target_shape)
