@@ -28,7 +28,7 @@ def _compute_model_costs(model_trace, guide_trace, ordering):
     enum_dims = []
     for name, site in model_trace.nodes.items():
         if site["type"] == "sample":
-            if name in guide_trace or not site["infer"].get("_enumerate_dim") is not None:
+            if name in guide_trace or site["infer"].get("_enumerate_dim") is None:
                 costs.setdefault(ordering[name], []).append(site["log_prob"])
             else:
                 log_prob = site["score_parts"].score_function  # not scaled by subsampling
@@ -39,20 +39,27 @@ def _compute_model_costs(model_trace, guide_trace, ordering):
 
     # Marginalize out all enumerated variables.
     enum_boundary = max(enum_dims) + 1
+    assert enum_boundary <= 0
     marginal_costs = OrderedDict((t, []) for t in costs)
     with shared_intermediates():
         for t, costs_t in costs.items():
-            # TODO refine this coarse dependency ordering using time and tensor shapes.
-            logprobs_t = sum((logprobs_u for u, logprobs_u in enum_logprobs.items() if u <= t), [])
-            if not logprobs_t:
+            logprobs = []
+            for u, logprobs_u in enum_logprobs.items():
+                # TODO refine this coarse dependency ordering using time and tensor shapes.
+                if u <= t:
+                    logprobs.extend(logprobs_u)
+            if not logprobs:
                 marginal_costs[t] = costs_t
                 continue
-
-            ordinal_shape = broadcast_shape(*(x.shape for x in logprobs_t))
-            for cost_t in costs_t:
-                target_shape = broadcast_shape(cost_t.shape, ordinal_shape)
-                target_shape = target_shape[enum_boundary:] if enum_boundary else ()
-                marginal_costs[t].append(logsumproductexp(logprobs_t + [cost_t], target_shape))
+            costs = []
+            for cost in costs_t:
+                (costs if len(cost.shape) > -enum_boundary else marginal_costs[t]).append(cost)
+            if costs:
+                log_factors = logprobs + costs
+                target_shape = (broadcast_shape(*set(x.shape[enum_boundary:] for x in log_factors))
+                                if enum_boundary else ())
+                marginal_cost = logsumproductexp(log_factors, target_shape)
+                marginal_costs[t].append(marginal_cost)
     return marginal_costs
 
 

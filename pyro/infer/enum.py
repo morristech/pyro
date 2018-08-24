@@ -47,7 +47,7 @@ def get_importance_trace(graph_type, max_iarange_nesting, model, guide, *args, *
     guide_trace = prune_subsample_sites(guide_trace)
     model_trace = prune_subsample_sites(model_trace)
 
-    if any(site["infer"].get("_enumerate_dim")
+    if any(site["infer"].get("_enumerate_dim") is not None
             for name, site in model_trace.nodes.items()
             if site["type"] == "sample" and name not in guide_trace.nodes):
         model_trace.compute_score_parts()  # needed for enumeration
