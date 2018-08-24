@@ -1080,7 +1080,7 @@ def test_elbo_rsvi(enumerate1):
     ("parallel", 3, False),
     ("parallel", 10, False),
     ("parallel", 20, False),
-    pytest.param("parallel", 30, False, marks=pytest.mark.skip(reason="extremely expensive")),
+    ("parallel", 30, False),
 ])
 def test_elbo_hmm_in_model(enumerate1, num_steps, expand):
     pyro.clear_param_store()

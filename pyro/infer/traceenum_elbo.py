@@ -76,12 +76,14 @@ class TraceEnum_ELBO(ELBO):
     """
     A trace implementation of ELBO-based SVI that supports
     - exhaustive enumeration over discrete sample sites, and
-    - local parallel sampling over any sample sites.
+    - local parallel sampling over any sample site.
 
-    To enumerate over a sample site, the ``guide``'s sample site must specify
-    either ``infer={'enumerate': 'sequential'}`` or
-    ``infer={'enumerate': 'parallel'}``. To configure all sites at once, use
-    :func:`~pyro.infer.enum.config_enumerate`.
+    To enumerate over a sample site in the ``guide``, mark the site with either
+    ``infer={'enumerate': 'sequential'}`` or
+    ``infer={'enumerate': 'parallel'}``. To configure all guide sites at once,
+    use :func:`~pyro.infer.enum.config_enumerate`. To enumerate over a sample
+    site in the ``model``, mark the site ``infer={'enumerate': 'parallel'}``
+    and ensure the site does not appear in the ``guide``.
 
     This assumes restricted dependency structure on the model and guide:
     variables outside of an :class:`~pyro.iarange` can never depend on
