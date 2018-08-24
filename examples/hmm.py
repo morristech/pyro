@@ -11,6 +11,7 @@ import pyro.distributions as dist
 from pyro import poutine
 from pyro.contrib.autoguide import AutoDelta
 from pyro.infer import SVI, JitTraceEnum_ELBO, TraceEnum_ELBO
+from pyro.ops.einsum import cached_paths
 from pyro.optim import Adam
 
 logging.basicConfig(format='%(relativeCreated) 9d %(message)s', level=logging.INFO)
@@ -50,7 +51,7 @@ def main(args):
     emit_prior = dist.Beta(0.5 * torch.ones(args.hidden_dim, data_dim),
                            0.5 * torch.ones(args.hidden_dim, data_dim)).independent(2)
     pyro.param('auto_trans',
-               0.9 * torch.eye(args.hidden_dim) + 0.1 * trans_prior.sample(),
+               0.8 * torch.eye(args.hidden_dim) + 0.1 + 0.1 * trans_prior.sample(),
                constraint=trans_prior.support)
     pyro.param('auto_emit',
                0.9 * 0.5 * torch.ones(args.hidden_dim, data_dim) + 0.1 * emit_prior.sample(),
@@ -66,9 +67,10 @@ def main(args):
     svi = SVI(model, guide, optim, elbo)
 
     logging.info('Epoch\tLoss')
-    for epoch in range(args.num_epochs):
-        loss = svi.step(sequences, sequence_lengths, trans_prior, emit_prior, args)
-        logging.info('{: >5d}\t{}'.format(epoch, loss))
+    with cached_paths('data/opt_einsum_path_cache.pkl'):
+        for epoch in range(args.num_epochs):
+            loss = svi.step(sequences, sequence_lengths, trans_prior, emit_prior, args)
+            logging.info('{: >5d}\t{}'.format(epoch, loss))
 
 
 if __name__ == '__main__':
