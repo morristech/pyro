@@ -31,7 +31,8 @@ def _compute_model_costs(model_trace, guide_trace, ordering):
             if name in guide_trace or not site["infer"].get("_enumerate_dim") is not None:
                 costs.setdefault(ordering[name], []).append(site["log_prob"])
             else:
-                enum_logprobs.setdefault(ordering[name], []).append(site["log_prob"])
+                log_prob = site["score_parts"].score_function  # not scaled by subsampling
+                enum_logprobs.setdefault(ordering[name], []).append(log_prob)
                 enum_dims.append(len(site["fn"].event_shape) - len(site["value"].shape))
     if not enum_logprobs:
         return costs
