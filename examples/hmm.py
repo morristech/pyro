@@ -21,14 +21,12 @@ def model(sequences, sequence_lengths, trans_prior, emit_prior, args):
     assert len(sequences) == len(sequence_lengths)
     trans = pyro.sample("trans", trans_prior)
     emit = pyro.sample("emit", emit_prior)
-    num_tones = sequences.shape[-1]
-    tones_iarange = pyro.iarange("tones", num_tones, dim=-1)
+    tones_iarange = pyro.iarange("tones", sequences.shape[-1], dim=-1)
     with pyro.iarange("sequences", len(sequences), args.batch_size, dim=-2) as batch:
         lengths = sequence_lengths[batch]
-        num_observations = len(sequences) * lengths.float() * num_tones  # report loss per obs
         x = 0
         for t in range(lengths.max()):
-            with poutine.scale(scale=((lengths > t).float() / num_observations).unsqueeze(-1)):
+            with poutine.scale(scale=(lengths > t).float().unsqueeze(-1)):
                 x = pyro.sample("x_{}".format(t), dist.Categorical(trans[x]),
                                 infer={"enumerate": "parallel", "expand": False})
                 with tones_iarange:
@@ -67,10 +65,11 @@ def main(args):
     svi = SVI(model, guide, optim, elbo)
 
     logging.info('Epoch\tLoss')
+    num_observations = float(sequence_lengths.sum())
     with cached_paths('data/opt_einsum_path_cache.pkl'):
         for epoch in range(args.num_epochs):
             loss = svi.step(sequences, sequence_lengths, trans_prior, emit_prior, args)
-            logging.info('{: >5d}\t{}'.format(epoch, loss))
+            logging.info('{: >5d}\t{}'.format(epoch, loss / num_observations))
 
 
 if __name__ == '__main__':
